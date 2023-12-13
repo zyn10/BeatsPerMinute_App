@@ -1,7 +1,9 @@
 import 'dart:convert';
+import 'package:audioplayers/audioplayers.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'package:file_picker/file_picker.dart';
+import 'package:record/record.dart';
 
 class BPMCalculator extends StatefulWidget {
   const BPMCalculator({Key? key}) : super(key: key);
@@ -12,6 +14,24 @@ class BPMCalculator extends StatefulWidget {
 
 class _BPMCalculatorState extends State<BPMCalculator> {
   String bpmResult = '';
+  late Record audioRecord;
+  late AudioPlayer audioPlayer;
+  bool isRecording = false;
+  String audioPath = '';
+
+  @override
+  void initState() {
+    audioPlayer = AudioPlayer();
+    audioRecord = Record();
+    super.initState();
+  }
+
+  @override
+  void dispose() {
+    audioRecord.dispose();
+    audioPlayer.dispose();
+    super.dispose();
+  }
 
   Future<void> calculateBPM(String filePath) async {
     var url = Uri.parse('http://192.168.0.100:8080/calculate_bpm');
@@ -43,6 +63,42 @@ class _BPMCalculatorState extends State<BPMCalculator> {
       setState(() {
         bpmResult = 'Error: $e';
       });
+    }
+  }
+
+  Future<void> stopRecording() async {
+    try {
+      String? path = await audioRecord.stop();
+      setState(() {
+        isRecording = false;
+        audioPath = path!;
+        print(audioPath);
+        calculateBPM(audioPath);
+      });
+    } catch (e) {
+      print(e);
+    }
+  }
+
+  Future<void> startRecording() async {
+    try {
+      if (await audioRecord.hasPermission()) {
+        await audioRecord.start();
+        setState(() {
+          isRecording = true;
+        });
+      }
+    } catch (e) {
+      print("Error in recording");
+    }
+  }
+
+  Future<void> playRecording() async {
+    try {
+      Source urlSource = UrlSource(audioPath);
+      await audioPlayer.play(urlSource);
+    } catch (e) {
+      print("Error playing audio");
     }
   }
 
@@ -81,14 +137,36 @@ class _BPMCalculatorState extends State<BPMCalculator> {
             Text(
               bpmResult,
               style: const TextStyle(
-                fontSize: 24,
+                fontSize: 18,
                 fontWeight: FontWeight.w500,
               ),
             ),
             ElevatedButton(
               onPressed: pickAndCalculateBPM,
-              child: const Text('Select and Calculate BPM'),
+              child: const Text(
+                "Pick and calculate",
+              ),
             ),
+            ElevatedButton(
+              onPressed: isRecording ? stopRecording : startRecording,
+              child: isRecording
+                  ? const Text('Stop Recording')
+                  : const Text('Start Recording'),
+            ),
+            const SizedBox(
+              height: 25,
+            ),
+            if (!isRecording && audioPath != null)
+              ElevatedButton(
+                onPressed: playRecording,
+                child: const Text(
+                  "Play Recording",
+                  // style: TextStyle(
+                  //   fontSize: 18,
+                  //   fontWeight: FontWeight.w500,
+                  // ),
+                ),
+              ),
           ],
         ),
       ),
